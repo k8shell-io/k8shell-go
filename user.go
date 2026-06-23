@@ -3,21 +3,26 @@
 
 package k8shell
 
-import "github.com/k8shell-io/common/pkg/models"
+import (
+	"context"
+	"net/url"
+
+	"github.com/k8shell-io/common/pkg/models"
+)
 
 // GetProfile returns the profile of the authenticated user.
-func (c *Client) GetProfile() (*models.User, error) {
+func (c *Client) GetProfile(ctx context.Context) (*models.User, error) {
 	var u models.User
-	if err := c.get("/api/v1/me/profile", &u); err != nil {
+	if err := c.get(ctx, "/api/v1/me/profile", &u); err != nil {
 		return nil, err
 	}
 	return &u, nil
 }
 
 // ListUsers returns all users visible to the authenticated token.
-func (c *Client) ListUsers() ([]models.User, error) {
+func (c *Client) ListUsers(ctx context.Context) ([]models.User, error) {
 	var users []models.User
-	if err := c.get("/api/v1/users", &users); err != nil {
+	if err := c.get(ctx, "/api/v1/users", &users); err != nil {
 		return nil, err
 	}
 	return users, nil
@@ -26,13 +31,17 @@ func (c *Client) ListUsers() ([]models.User, error) {
 // ListSessions returns SSH sessions for the given username, or for the
 // authenticated user when username is empty. When all is true, all sessions
 // (including ended ones) are returned.
-func (c *Client) ListSessions(username string, all bool) ([]models.SSHSession, error) {
-	path := c.userPath(username) + "/sessions"
+func (c *Client) ListSessions(ctx context.Context, username string, all bool) ([]models.SSHSession, error) {
+	q := url.Values{}
 	if all {
-		path += "?all=true"
+		q.Set("all", "true")
+	}
+	path := c.userPath(username) + "/sessions"
+	if len(q) > 0 {
+		path += "?" + q.Encode()
 	}
 	var sessions []models.SSHSession
-	if err := c.get(path, &sessions); err != nil {
+	if err := c.get(ctx, path, &sessions); err != nil {
 		return nil, err
 	}
 	return sessions, nil

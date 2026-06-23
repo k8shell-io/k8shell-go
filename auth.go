@@ -4,12 +4,16 @@
 package k8shell
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/url"
 
 	"github.com/k8shell-io/common/pkg/models"
 )
+
+// CapabilityOnboardUserWebFlow is the provider capability required for browser-based login.
+const CapabilityOnboardUserWebFlow = "OnboardUserWebFlow"
 
 type providerInfo struct {
 	Name         string   `json:"name"`
@@ -18,15 +22,15 @@ type providerInfo struct {
 
 // ListProviders returns the names of identity providers that support the
 // OnboardUserWebFlow capability (i.e. browser-based login).
-func (c *Client) ListProviders() ([]string, error) {
+func (c *Client) ListProviders(ctx context.Context) ([]string, error) {
 	var providers []providerInfo
-	if err := c.get("/api/v1/auth/providers", &providers); err != nil {
+	if err := c.get(ctx, "/api/v1/auth/providers", &providers); err != nil {
 		return nil, err
 	}
 	var names []string
 	for _, p := range providers {
 		for _, cap := range p.Capabilities {
-			if cap == "OnboardUserWebFlow" {
+			if cap == CapabilityOnboardUserWebFlow {
 				names = append(names, p.Name)
 				break
 			}
@@ -38,7 +42,7 @@ func (c *Client) ListProviders() ([]string, error) {
 // PollToken checks whether the PAT for the given OAuth state is ready.
 // Returns (nil, nil) when the login is still pending (202 Accepted),
 // or (token, nil) once the token is issued (200 OK).
-func (c *Client) PollToken(state string) (*models.UserToken, error) {
+func (c *Client) PollToken(ctx context.Context, state string) (*models.UserToken, error) {
 	u, err := url.Parse(c.server + "/api/v1/auth/token")
 	if err != nil {
 		return nil, err
@@ -47,7 +51,7 @@ func (c *Client) PollToken(state string) (*models.UserToken, error) {
 	q.Set("state", state)
 	u.RawQuery = q.Encode()
 
-	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
 		return nil, err
 	}

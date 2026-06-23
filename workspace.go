@@ -4,6 +4,7 @@
 package k8shell
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/url"
@@ -32,7 +33,7 @@ type WorkspaceCreateResponse struct {
 // ListWorkspaces returns workspaces visible to the authenticated token.
 // When username is non-empty the results are filtered by owner.
 // When all is true, workspaces in all states are included.
-func (c *Client) ListWorkspaces(username string, all bool) ([]models.WorkspaceDetails, error) {
+func (c *Client) ListWorkspaces(ctx context.Context, username string, all bool) ([]models.WorkspaceDetails, error) {
 	q := url.Values{}
 	if username != "" {
 		q.Set("username", username)
@@ -45,7 +46,7 @@ func (c *Client) ListWorkspaces(username string, all bool) ([]models.WorkspaceDe
 		path += "?" + q.Encode()
 	}
 	var workspaces []models.WorkspaceDetails
-	if err := c.get(path, &workspaces); err != nil {
+	if err := c.get(ctx, path, &workspaces); err != nil {
 		return nil, err
 	}
 	return workspaces, nil
@@ -53,9 +54,9 @@ func (c *Client) ListWorkspaces(username string, all bool) ([]models.WorkspaceDe
 
 // CreateWorkspace submits a workspace creation request and returns the 202 response
 // containing the workspace name, job ID, and SSE monitor URL.
-func (c *Client) CreateWorkspace(req WorkspaceCreateRequest) (*WorkspaceCreateResponse, error) {
+func (c *Client) CreateWorkspace(ctx context.Context, req WorkspaceCreateRequest) (*WorkspaceCreateResponse, error) {
 	var resp WorkspaceCreateResponse
-	if err := c.post("/api/v1/workspaces", req, &resp); err != nil {
+	if err := c.post(ctx, "/api/v1/workspaces", req, &resp); err != nil {
 		return nil, err
 	}
 	// Strip a duplicated jobId segment that some server versions emit in monitorUrl.
@@ -68,9 +69,9 @@ func (c *Client) CreateWorkspace(req WorkspaceCreateRequest) (*WorkspaceCreateRe
 }
 
 // GetWorkspace returns the details of the named workspace.
-func (c *Client) GetWorkspace(name string) (*models.WorkspaceDetails, error) {
+func (c *Client) GetWorkspace(ctx context.Context, name string) (*models.WorkspaceDetails, error) {
 	var ws models.WorkspaceDetails
-	if err := c.get("/api/v1/workspaces/"+name, &ws); err != nil {
+	if err := c.get(ctx, "/api/v1/workspaces/"+name, &ws); err != nil {
 		return nil, err
 	}
 	return &ws, nil
@@ -78,23 +79,23 @@ func (c *Client) GetWorkspace(name string) (*models.WorkspaceDetails, error) {
 
 // DeleteWorkspace shuts down the named workspace.
 // When deleteData is true, workspace storage is permanently deleted.
-func (c *Client) DeleteWorkspace(name string, deleteData bool) error {
+func (c *Client) DeleteWorkspace(ctx context.Context, name string, deleteData bool) error {
 	path := "/api/v1/workspaces/" + name
 	if deleteData {
 		path += "?delete=true"
 	}
-	return c.delete(path)
+	return c.delete(ctx, path)
 }
 
 // MonitorWorkspace opens an SSE stream at monitorURL and returns the response
 // body for the caller to consume. monitorURL may be a full URL or a path
 // relative to the client's server. The caller is responsible for closing the
 // returned ReadCloser.
-func (c *Client) MonitorWorkspace(monitorURL string) (io.ReadCloser, error) {
+func (c *Client) MonitorWorkspace(ctx context.Context, monitorURL string) (io.ReadCloser, error) {
 	if u, err := url.Parse(monitorURL); err == nil && u.Scheme == "" {
 		monitorURL = c.server + monitorURL
 	}
-	req, err := http.NewRequest(http.MethodGet, monitorURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, monitorURL, nil)
 	if err != nil {
 		return nil, err
 	}
