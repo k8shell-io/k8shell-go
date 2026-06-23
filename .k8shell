@@ -1,0 +1,16 @@
+blueprint:
+  template: development
+  image: workspaces/dev-go:1.0
+  resources:
+    cpu: 8
+    memory: 8Gi
+  network:
+    networkPolicyClass: system
+
+  initScripts:
+    - name: init-go
+      script: |
+        go env -w GOPRIVATE=github.com/k8shell-io/*
+        cd $HOME/$GIT_REPONAME
+        GOPATH="$HOME/go" go mod tidy
+
