@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"sort"
+	"strings"
 )
 
 // Client is an authenticated HTTP client for the k8shell API.
@@ -97,6 +98,29 @@ func (e *APIError) Error() string {
 // Unwrap returns the underlying cause, enabling errors.Is/errors.As traversal.
 func (e *APIError) Unwrap() error { return e.cause }
 
+// apiErrorBody is the API's error response shape: {"status": <code>, "msg": "..."}.
+type apiErrorBody struct {
+	Status int    `json:"status"`
+	Msg    string `json:"msg"`
+}
+
+// newAPIError builds an APIError from a non-2xx response, extracting the message
+// from the response body when one is present.
+func newAPIError(resp *http.Response) *APIError {
+	apiErr := &APIError{StatusCode: resp.StatusCode}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil || len(body) == 0 {
+		return apiErr
+	}
+	var eb apiErrorBody
+	if json.Unmarshal(body, &eb) == nil && eb.Msg != "" {
+		apiErr.Message = eb.Msg
+	} else {
+		apiErr.Message = strings.TrimSpace(string(body))
+	}
+	return apiErr
+}
+
 func (c *Client) maskToken() string {
 	if len(c.token) <= 6 {
 		return "***"
@@ -155,7 +179,7 @@ func (c *Client) get(ctx context.Context, path string, out any) error {
 		c.debugResponse(resp)
 	}
 	if resp.StatusCode >= 400 {
-		return &APIError{StatusCode: resp.StatusCode}
+		return newAPIError(resp)
 	}
 	return json.NewDecoder(resp.Body).Decode(out)
 }
@@ -186,7 +210,41 @@ func (c *Client) post(ctx context.Context, path string, body, out any) error {
 		c.debugResponse(resp)
 	}
 	if resp.StatusCode >= 400 {
-		return &APIError{StatusCode: resp.StatusCode}
+		return newAPIError(resp)
+	}
+	if out != nil && resp.StatusCode != http.StatusNoContent {
+		return json.NewDecoder(resp.Body).Decode(out)
+	}
+	return nil
+}
+
+func (c *Client) patch(ctx context.Context, path string, body, out any) error {
+	b, err := json.Marshal(body)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, c.server+path, bytes.NewReader(b))
+	if err != nil {
+		return err
+	}
+	if c.token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.token)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	if c.debug {
+		c.debugRequest(req)
+	}
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if c.debug {
+		c.debugResponse(resp)
+	}
+	if resp.StatusCode >= 400 {
+		return newAPIError(resp)
 	}
 	if out != nil && resp.StatusCode != http.StatusNoContent {
 		return json.NewDecoder(resp.Body).Decode(out)
@@ -214,7 +272,37 @@ func (c *Client) delete(ctx context.Context, path string) error {
 		c.debugResponse(resp)
 	}
 	if resp.StatusCode >= 400 {
-		return &APIError{StatusCode: resp.StatusCode}
+		return newAPIError(resp)
+	}
+	return nil
+}
+
+func (c *Client) deleteWithBody(ctx context.Context, path string, body any) error {
+	b, err := json.Marshal(body)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, c.server+path, bytes.NewReader(b))
+	if err != nil {
+		return err
+	}
+	if c.token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.token)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if c.debug {
+		c.debugRequest(req)
+	}
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if c.debug {
+		c.debugResponse(resp)
+	}
+	if resp.StatusCode >= 400 {
+		return newAPIError(resp)
 	}
 	return nil
 }

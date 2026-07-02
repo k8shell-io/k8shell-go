@@ -77,6 +77,14 @@ if errors.As(err, &apiErr) {
 | `PollToken(ctx, state)` | Poll for a PAT after browser login |
 | `GetProfile(ctx)` | Authenticated user's profile |
 | `ListUsers(ctx)` | All users visible to the token |
+| `GetUserProfile(ctx, username)` | A user's profile by username |
+| `UpdateUserProfile(ctx, username, req)` | Partially replace fields on a user's profile |
+| `GetUserBlueprints(ctx, username)` | Blueprint names a user is allowed to use |
+| `AddUserRoles(ctx, username, roles)` / `RemoveUserRoles(...)` | Grant/revoke roles without touching the rest |
+| `AddUserBlueprints(ctx, username, blueprints)` / `RemoveUserBlueprints(...)` | Grant/revoke blueprints without touching the rest |
+| `AddUserKeys(ctx, username, keys)` / `RemoveUserKeys(...)` | Add/remove SSH public keys without touching the rest |
+| `ListUserCredentials(ctx, username)` | External service credentials stored for a user |
+| `GetUserCredential(ctx, username, serviceName)` | A user's credential for one external service |
 | `ListSessions(ctx, username, all)` | SSH sessions for a user |
 | `ListWorkspaces(ctx, username, all)` | Workspaces visible to the token |
 | `CreateWorkspace(ctx, req)` | Submit a workspace creation request |

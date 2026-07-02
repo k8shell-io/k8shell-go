@@ -2,7 +2,7 @@ module github.com/k8shell-io/k8shell-go
 
 go 1.25.0
 
-require github.com/k8shell-io/common v0.28.3
+require github.com/k8shell-io/common v0.29.15
 
 require (
 	github.com/gabriel-vasile/mimetype v1.4.8 // indirect
