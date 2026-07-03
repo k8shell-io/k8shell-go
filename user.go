@@ -6,6 +6,7 @@ package k8shell
 import (
 	"context"
 	"net/url"
+	"strconv"
 
 	"github.com/k8shell-io/common/pkg/models"
 )
@@ -105,15 +106,27 @@ func (c *Client) GetUserCredential(ctx context.Context, username, serviceName st
 	return &cred, nil
 }
 
-// ListSessions returns SSH sessions for the given username, or for the
-// authenticated user when username is empty. When all is true, all sessions
-// (including ended ones) are returned.
-func (c *Client) ListSessions(ctx context.Context, username string, all bool) ([]models.SSHSession, error) {
+// ListSessions returns SSH sessions visible to the authenticated token.
+// When username or workspace is non-empty, results are filtered accordingly.
+// When limit is greater than zero, results are capped to the last limit sessions
+// (the server is asked to reverse-sort so the cap keeps the most recent ones).
+// When all is true, all sessions (including ended ones) are returned.
+func (c *Client) ListSessions(ctx context.Context, username, workspace string, limit int, all bool) ([]models.SSHSession, error) {
 	q := url.Values{}
+	if username != "" {
+		q.Set("username", username)
+	}
+	if workspace != "" {
+		q.Set("workspace", workspace)
+	}
+	if limit > 0 {
+		q.Set("limit", strconv.Itoa(limit))
+		q.Set("reverse", "true")
+	}
 	if all {
 		q.Set("all", "true")
 	}
-	path := c.userPath(username) + "/sessions"
+	path := "/api/v1/sessions"
 	if len(q) > 0 {
 		path += "?" + q.Encode()
 	}

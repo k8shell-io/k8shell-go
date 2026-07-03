@@ -85,7 +85,7 @@ if errors.As(err, &apiErr) {
 | `AddUserKeys(ctx, username, keys)` / `RemoveUserKeys(...)` | Add/remove SSH public keys without touching the rest |
 | `ListUserCredentials(ctx, username)` | External service credentials stored for a user |
 | `GetUserCredential(ctx, username, serviceName)` | A user's credential for one external service |
-| `ListSessions(ctx, username, all)` | SSH sessions for a user |
+| `ListSessions(ctx, username, workspace, limit, all)` | SSH sessions visible to the token, optionally filtered by username/workspace and capped to the last limit |
 | `ListWorkspaces(ctx, username, all)` | Workspaces visible to the token |
 | `CreateWorkspace(ctx, req)` | Submit a workspace creation request |
 | `GetWorkspace(ctx, name)` | Workspace details by name |
