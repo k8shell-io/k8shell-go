@@ -8,6 +8,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -16,13 +17,24 @@ import (
 	"strings"
 )
 
+// ErrDryRun is returned by request methods instead of performing the HTTP
+// call when the client was constructed with [WithCurl]: the equivalent curl
+// command has already been printed and the request is intentionally not
+// sent, so no response data is available. Callers should propagate this
+// error rather than act on zero-value results.
+var ErrDryRun = errors.New("dry run: request not sent (--curl)")
+
 // Client is an authenticated HTTP client for the k8shell API.
 type Client struct {
-	server string
-	token  string
-	debug  bool
-	debugw io.Writer
-	http   *http.Client
+	server       string
+	token        string
+	debug        bool
+	curl         bool
+	curlVerbose  bool
+	curlLocation bool
+	insecure     bool
+	debugw       io.Writer
+	http         *http.Client
 }
 
 // Option configures a Client.
@@ -41,9 +53,31 @@ func WithDebugWriter(w io.Writer) Option {
 	}
 }
 
+// WithCurl enables printing an equivalent curl command — including the
+// unmasked bearer token — for every request instead of debug header output.
+// Callers are responsible for not combining this with [WithDebug].
+func WithCurl() Option {
+	return func(c *Client) { c.curl = true }
+}
+
+// WithCurlVerbose adds curl's own -v flag to the command printed by
+// [WithCurl], so curl prints its own verbose connection/handshake details
+// when the command is run. Has no effect unless [WithCurl] is also set.
+func WithCurlVerbose() Option {
+	return func(c *Client) { c.curlVerbose = true }
+}
+
+// WithCurlLocation adds curl's own -L flag to the command printed by
+// [WithCurl], so curl follows redirects the same way c.http does by
+// default. Has no effect unless [WithCurl] is also set.
+func WithCurlLocation() Option {
+	return func(c *Client) { c.curlLocation = true }
+}
+
 // WithInsecure disables TLS certificate verification.
 func WithInsecure() Option {
 	return func(c *Client) {
+		c.insecure = true
 		c.http.Transport = &http.Transport{
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec
 		}
@@ -145,6 +179,44 @@ func (c *Client) debugRequest(req *http.Request) {
 	fmt.Fprintln(c.debugw, ">")
 }
 
+// printCurl writes a curl command reproducing req, including the unmasked
+// bearer token, so the request can be replayed outside the CLI. Unlike debug
+// output, this is written to stdout (not c.debugw) so it can be piped
+// directly into a shell, e.g. `k8shell ... --curl | bash`.
+func (c *Client) printCurl(req *http.Request, body []byte) {
+	var b strings.Builder
+	b.WriteString("curl")
+	if c.curlVerbose {
+		b.WriteString(" -v")
+	}
+	if c.curlLocation {
+		b.WriteString(" -L")
+	}
+	fmt.Fprintf(&b, " -X %s", req.Method)
+	if c.insecure {
+		b.WriteString(" -k")
+	}
+	fmt.Fprintf(&b, " %s", shellQuote(req.URL.String()))
+	keys := make([]string, 0, len(req.Header))
+	for k := range req.Header {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		fmt.Fprintf(&b, " \\\n  -H %s", shellQuote(k+": "+req.Header.Get(k)))
+	}
+	if len(body) > 0 {
+		fmt.Fprintf(&b, " \\\n  -d %s", shellQuote(string(body)))
+	}
+	fmt.Fprintln(os.Stdout, b.String())
+}
+
+// shellQuote wraps s in single quotes, escaping any embedded single quotes
+// so the result is safe to paste into a POSIX shell.
+func shellQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+}
+
 func (c *Client) debugResponse(resp *http.Response) {
 	fmt.Fprintf(c.debugw, "< %s\n", resp.Status)
 	keys := make([]string, 0, len(resp.Header))
@@ -169,6 +241,10 @@ func (c *Client) get(ctx context.Context, path string, out any) error {
 	req.Header.Set("Accept", "application/json")
 	if c.debug {
 		c.debugRequest(req)
+	}
+	if c.curl {
+		c.printCurl(req, nil)
+		return ErrDryRun
 	}
 	resp, err := c.http.Do(req)
 	if err != nil {
@@ -200,6 +276,10 @@ func (c *Client) post(ctx context.Context, path string, body, out any) error {
 	req.Header.Set("Accept", "application/json")
 	if c.debug {
 		c.debugRequest(req)
+	}
+	if c.curl {
+		c.printCurl(req, b)
+		return ErrDryRun
 	}
 	resp, err := c.http.Do(req)
 	if err != nil {
@@ -235,6 +315,10 @@ func (c *Client) patch(ctx context.Context, path string, body, out any) error {
 	if c.debug {
 		c.debugRequest(req)
 	}
+	if c.curl {
+		c.printCurl(req, b)
+		return ErrDryRun
+	}
 	resp, err := c.http.Do(req)
 	if err != nil {
 		return err
@@ -262,6 +346,10 @@ func (c *Client) delete(ctx context.Context, path string) error {
 	}
 	if c.debug {
 		c.debugRequest(req)
+	}
+	if c.curl {
+		c.printCurl(req, nil)
+		return ErrDryRun
 	}
 	resp, err := c.http.Do(req)
 	if err != nil {
@@ -292,6 +380,10 @@ func (c *Client) deleteWithBody(ctx context.Context, path string, body any) erro
 	req.Header.Set("Content-Type", "application/json")
 	if c.debug {
 		c.debugRequest(req)
+	}
+	if c.curl {
+		c.printCurl(req, b)
+		return ErrDryRun
 	}
 	resp, err := c.http.Do(req)
 	if err != nil {

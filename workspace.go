@@ -106,6 +106,10 @@ func (c *Client) MonitorWorkspace(ctx context.Context, monitorURL string) (io.Re
 	if c.debug {
 		c.debugRequest(req)
 	}
+	if c.curl {
+		c.printCurl(req, nil)
+		return nil, ErrDryRun
+	}
 	resp, err := c.http.Do(req)
 	if err != nil {
 		return nil, err

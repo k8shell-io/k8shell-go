@@ -58,6 +58,10 @@ func (c *Client) PollToken(ctx context.Context, state string) (*models.UserToken
 	if c.debug {
 		c.debugRequest(req)
 	}
+	if c.curl {
+		c.printCurl(req, nil)
+		return nil, ErrDryRun
+	}
 	resp, err := c.http.Do(req)
 	if err != nil {
 		return nil, err
