@@ -336,6 +336,44 @@ func (c *Client) patch(ctx context.Context, path string, body, out any) error {
 	return nil
 }
 
+func (c *Client) put(ctx context.Context, path string, body, out any) error {
+	b, err := json.Marshal(body)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut, c.server+path, bytes.NewReader(b))
+	if err != nil {
+		return err
+	}
+	if c.token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.token)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	if c.debug {
+		c.debugRequest(req)
+	}
+	if c.curl {
+		c.printCurl(req, b)
+		return ErrDryRun
+	}
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if c.debug {
+		c.debugResponse(resp)
+	}
+	if resp.StatusCode >= 400 {
+		return newAPIError(resp)
+	}
+	if out != nil && resp.StatusCode != http.StatusNoContent {
+		return json.NewDecoder(resp.Body).Decode(out)
+	}
+	return nil
+}
+
 func (c *Client) delete(ctx context.Context, path string) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, c.server+path, nil)
 	if err != nil {

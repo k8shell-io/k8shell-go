@@ -49,6 +49,17 @@ func (c *Client) UpdateUserProfile(ctx context.Context, username string, req mod
 	return &u, nil
 }
 
+// SetUserPassword sets or replaces the named user's local password and returns
+// the updated record. Pass an empty username to set the authenticated user's own
+// password. The server bcrypt-hashes the password before persisting it.
+func (c *Client) SetUserPassword(ctx context.Context, username, password string) (*models.User, error) {
+	var u models.User
+	if err := c.put(ctx, c.userPath(username)+"/password", models.UserPasswordRequest{Password: &password}, &u); err != nil {
+		return nil, err
+	}
+	return &u, nil
+}
+
 // GetUserBlueprints returns the blueprint names the named user is allowed to use.
 func (c *Client) GetUserBlueprints(ctx context.Context, username string) ([]string, error) {
 	var blueprints []string
@@ -108,8 +119,7 @@ func (c *Client) GetUserCredential(ctx context.Context, username, serviceName st
 
 // ListSessions returns SSH sessions visible to the authenticated token.
 // When username or workspace is non-empty, results are filtered accordingly.
-// When limit is greater than zero, results are capped to the last limit sessions
-// (the server is asked to reverse-sort so the cap keeps the most recent ones).
+// When limit is greater than zero, results are capped to the last limit sessions.
 // When all is true, all sessions (including ended ones) are returned.
 func (c *Client) ListSessions(ctx context.Context, username, workspace string, limit int, all bool) ([]models.SSHSession, error) {
 	q := url.Values{}
@@ -120,8 +130,7 @@ func (c *Client) ListSessions(ctx context.Context, username, workspace string, l
 		q.Set("workspace", workspace)
 	}
 	if limit > 0 {
-		q.Set("limit", strconv.Itoa(limit))
-		q.Set("reverse", "true")
+		q.Set("last_n", strconv.Itoa(limit))
 	}
 	if all {
 		q.Set("all", "true")
