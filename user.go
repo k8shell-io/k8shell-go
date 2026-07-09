@@ -39,6 +39,11 @@ func (c *Client) CreateUser(ctx context.Context, req models.UserCreateRequest) (
 	return &u, nil
 }
 
+// DeleteUser permanently deletes the named user. Only admin tokens can delete users.
+func (c *Client) DeleteUser(ctx context.Context, username string) error {
+	return c.delete(ctx, c.userPath(username))
+}
+
 // GetUserProfile returns the profile of the named user.
 func (c *Client) GetUserProfile(ctx context.Context, username string) (*models.User, error) {
 	var u models.User
