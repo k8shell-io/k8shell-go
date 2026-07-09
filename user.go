@@ -29,6 +29,16 @@ func (c *Client) ListUsers(ctx context.Context) ([]models.User, error) {
 	return users, nil
 }
 
+// CreateUser creates a new local user record with no backing identity provider
+// and returns it. Only admin tokens can create users.
+func (c *Client) CreateUser(ctx context.Context, req models.UserCreateRequest) (*models.User, error) {
+	var u models.User
+	if err := c.post(ctx, "/api/v1/users", req, &u); err != nil {
+		return nil, err
+	}
+	return &u, nil
+}
+
 // GetUserProfile returns the profile of the named user.
 func (c *Client) GetUserProfile(ctx context.Context, username string) (*models.User, error) {
 	var u models.User
@@ -94,9 +104,24 @@ func (c *Client) AddUserKeys(ctx context.Context, username string, keys []string
 	return c.post(ctx, c.userPath(username)+"/keys", models.UserKeysRequest{Keys: keys}, nil)
 }
 
-// RemoveUserKeys removes the given SSH public keys from the named user, leaving others untouched.
-func (c *Client) RemoveUserKeys(ctx context.Context, username string, keys []string) error {
-	return c.deleteWithBody(ctx, c.userPath(username)+"/keys", models.UserKeysRequest{Keys: keys})
+// ListUserAuthKeys returns the SSH public keys registered for the named user, in
+// digest (fingerprint) form. Each key's Index identifies its position for use
+// with RemoveUserAuthKey.
+func (c *Client) ListUserAuthKeys(ctx context.Context, username string) ([]models.UserAuthKey, error) {
+	q := url.Values{}
+	q.Set("format", "digest")
+	var keys []models.UserAuthKey
+	if err := c.get(ctx, c.userPath(username)+"/keys?"+q.Encode(), &keys); err != nil {
+		return nil, err
+	}
+	return keys, nil
+}
+
+// RemoveUserAuthKey removes a single SSH public key from the named user, identified
+// by its index in the list returned by ListUserAuthKeys. The authenticated token
+// identifies who is performing the removal; username identifies whose key it is.
+func (c *Client) RemoveUserAuthKey(ctx context.Context, username string, index int) error {
+	return c.delete(ctx, c.userPath(username)+"/keys/"+strconv.Itoa(index))
 }
 
 // ListUserCredentials returns the external service credentials stored for the named user.
