@@ -152,6 +152,18 @@ func (c *Client) GetUserCredential(ctx context.Context, username string, id uint
 	return &creds[0], nil
 }
 
+// UpdateUserCredential partially updates the named user's credential with the given
+// ID and returns the updated record. Only non-nil fields in req are applied.
+func (c *Client) UpdateUserCredential(ctx context.Context, username string, id uint32, req models.UserCredentialUpdateRequest) (*models.UserCredential, error) {
+	q := url.Values{}
+	q.Set("id", strconv.FormatUint(uint64(id), 10))
+	var out models.UserCredential
+	if err := c.patch(ctx, c.userPath(username)+"/credentials?"+q.Encode(), req, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // DeleteUserCredential deletes the named user's credential with the given ID.
 func (c *Client) DeleteUserCredential(ctx context.Context, username string, id uint32) error {
 	q := url.Values{}
