@@ -138,13 +138,35 @@ func (c *Client) ListUserCredentials(ctx context.Context, username string) ([]mo
 	return creds, nil
 }
 
-// GetUserCredential returns the named user's credential for the given external service.
-func (c *Client) GetUserCredential(ctx context.Context, username, serviceName string) (*models.UserCredential, error) {
-	var cred models.UserCredential
-	if err := c.get(ctx, c.userPath(username)+"/credentials/"+serviceName, &cred); err != nil {
+// GetUserCredential returns the named user's credential with the given ID.
+func (c *Client) GetUserCredential(ctx context.Context, username string, id uint32) (*models.UserCredential, error) {
+	q := url.Values{}
+	q.Set("id", strconv.FormatUint(uint64(id), 10))
+	var creds []models.UserCredential
+	if err := c.get(ctx, c.userPath(username)+"/credentials?"+q.Encode(), &creds); err != nil {
 		return nil, err
 	}
-	return &cred, nil
+	if len(creds) == 0 {
+		return nil, &APIError{StatusCode: 404, Message: "credential not found"}
+	}
+	return &creds[0], nil
+}
+
+// DeleteUserCredential deletes the named user's credential with the given ID.
+func (c *Client) DeleteUserCredential(ctx context.Context, username string, id uint32) error {
+	q := url.Values{}
+	q.Set("id", strconv.FormatUint(uint64(id), 10))
+	return c.delete(ctx, c.userPath(username)+"/credentials?"+q.Encode())
+}
+
+// AddKubernetesUserCredential provisions a Kubernetes service-account credential for
+// the named user and returns the stored record.
+func (c *Client) AddKubernetesUserCredential(ctx context.Context, username string, req models.UserKubernetesCredentialRequest) (*models.UserCredential, error) {
+	var out models.UserCredential
+	if err := c.post(ctx, c.userPath(username)+"/credentials/kubernetes", req, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
 }
 
 // ListSessions returns SSH sessions visible to the authenticated token.
