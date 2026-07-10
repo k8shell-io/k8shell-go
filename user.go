@@ -169,6 +169,26 @@ func (c *Client) AddKubernetesUserCredential(ctx context.Context, username strin
 	return &out, nil
 }
 
+// AddGitUserCredential stores a Git credential for the named user and returns the
+// stored record.
+func (c *Client) AddGitUserCredential(ctx context.Context, username string, req models.UserGitCredentialRequest) (*models.UserCredential, error) {
+	var out models.UserCredential
+	if err := c.post(ctx, c.userPath(username)+"/credentials/git", req, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// AddRegistryUserCredential stores a container registry credential for the named user
+// and returns the stored record.
+func (c *Client) AddRegistryUserCredential(ctx context.Context, username string, req models.UserRegistryCredentialRequest) (*models.UserCredential, error) {
+	var out models.UserCredential
+	if err := c.post(ctx, c.userPath(username)+"/credentials/registry", req, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ListSessions returns SSH sessions visible to the authenticated token.
 // When username or workspace is non-empty, results are filtered accordingly.
 // When limit is greater than zero, results are capped to the last limit sessions.
