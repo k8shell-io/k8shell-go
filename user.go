@@ -12,17 +12,36 @@ import (
 )
 
 // GetProfile returns the profile of the authenticated user.
-func (c *Client) GetProfile(ctx context.Context) (*models.User, error) {
-	var u models.User
+func (c *Client) GetProfile(ctx context.Context) (*models.UserProfile, error) {
+	var u models.UserProfile
 	if err := c.get(ctx, "/api/v1/me/profile", &u); err != nil {
 		return nil, err
 	}
 	return &u, nil
 }
 
-// ListUsers returns all users visible to the authenticated token.
-func (c *Client) ListUsers(ctx context.Context) ([]models.User, error) {
-	var users []models.User
+// GetCapabilities returns the named user's policy capabilities: which actions
+// they are allowed or denied, why, and any obligations attached. Pass an empty
+// username for the authenticated user's own capabilities. resourceOwner, if
+// non-empty, checks capabilities as they'd apply to resources owned by that
+// user (e.g. an org-scoped policy obligation) rather than the caller's own.
+func (c *Client) GetCapabilities(ctx context.Context, username, resourceOwner string) ([]models.Capability, error) {
+	path := c.userPath(username) + "/capabilities"
+	if resourceOwner != "" {
+		q := url.Values{}
+		q.Set("resource_owner", resourceOwner)
+		path += "?" + q.Encode()
+	}
+	var caps []models.Capability
+	if err := c.get(ctx, path, &caps); err != nil {
+		return nil, err
+	}
+	return caps, nil
+}
+
+// ListUsers returns the profiles of all users visible to the authenticated token.
+func (c *Client) ListUsers(ctx context.Context) ([]models.UserProfile, error) {
+	var users []models.UserProfile
 	if err := c.get(ctx, "/api/v1/users", &users); err != nil {
 		return nil, err
 	}
@@ -45,8 +64,8 @@ func (c *Client) DeleteUser(ctx context.Context, username string) error {
 }
 
 // GetUserProfile returns the profile of the named user.
-func (c *Client) GetUserProfile(ctx context.Context, username string) (*models.User, error) {
-	var u models.User
+func (c *Client) GetUserProfile(ctx context.Context, username string) (*models.UserProfile, error) {
+	var u models.UserProfile
 	if err := c.get(ctx, c.userPath(username)+"/profile", &u); err != nil {
 		return nil, err
 	}
@@ -64,12 +83,25 @@ func (c *Client) UpdateUserProfile(ctx context.Context, username string, req mod
 	return &u, nil
 }
 
+// ClearUserPasswordLockout clears the named user's transient brute-force
+// lockout on password auth (UserProfile.PasswordLocked), leaving any
+// admin-set account lock (UserProfile.AccountLocked) untouched.
+func (c *Client) ClearUserPasswordLockout(ctx context.Context, username string) error {
+	return c.delete(ctx, c.userPath(username)+"/password-lockout")
+}
+
 // SetUserPassword sets or replaces the named user's local password and returns
 // the updated record. Pass an empty username to set the authenticated user's own
-// password. The server bcrypt-hashes the password before persisting it.
-func (c *Client) SetUserPassword(ctx context.Context, username, password string) (*models.User, error) {
+// password. currentPassword is required by the server when a non-sudo user is
+// changing their own password, and ignored otherwise; pass "" when not needed.
+// The server bcrypt-hashes the password before persisting it.
+func (c *Client) SetUserPassword(ctx context.Context, username, password, currentPassword string) (*models.User, error) {
+	req := models.UserPasswordRequest{Password: &password}
+	if currentPassword != "" {
+		req.CurrentPassword = &currentPassword
+	}
 	var u models.User
-	if err := c.put(ctx, c.userPath(username)+"/password", models.UserPasswordRequest{Password: &password}, &u); err != nil {
+	if err := c.put(ctx, c.userPath(username)+"/password", req, &u); err != nil {
 		return nil, err
 	}
 	return &u, nil
