@@ -184,6 +184,21 @@ func (c *Client) GetUserCredential(ctx context.Context, username string, id uint
 	return &creds[0], nil
 }
 
+// ResolveUserCredential returns the named user's credential for the given service
+// name and scope, as resolved by the server (e.g. narrowest matching scope wins).
+// Unlike GetUserCredential, which looks a credential up by its stored ID, this
+// mirrors the server's /credentials/{service_name}?scope= resolution endpoint used
+// by credential helpers (git, docker, kubernetes).
+func (c *Client) ResolveUserCredential(ctx context.Context, username, serviceName, scope string) (*models.UserCredential, error) {
+	q := url.Values{}
+	q.Set("scope", scope)
+	var cred models.UserCredential
+	if err := c.get(ctx, c.userPath(username)+"/credentials/"+serviceName+"?"+q.Encode(), &cred); err != nil {
+		return nil, err
+	}
+	return &cred, nil
+}
+
 // UpdateUserCredential partially updates the named user's credential with the given
 // ID and returns the updated record. Only non-nil fields in req are applied.
 func (c *Client) UpdateUserCredential(ctx context.Context, username string, id uint32, req models.UserCredentialUpdateRequest) (*models.UserCredential, error) {

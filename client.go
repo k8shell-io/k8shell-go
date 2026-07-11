@@ -15,6 +15,8 @@ import (
 	"os"
 	"sort"
 	"strings"
+
+	"gopkg.in/yaml.v3"
 )
 
 // ErrDryRun is returned by request methods instead of performing the HTTP
@@ -273,6 +275,48 @@ func (c *Client) post(ctx context.Context, path string, body, out any) error {
 		req.Header.Set("Authorization", "Bearer "+c.token)
 	}
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	if c.debug {
+		c.debugRequest(req)
+	}
+	if c.curl {
+		c.printCurl(req, b)
+		return ErrDryRun
+	}
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if c.debug {
+		c.debugResponse(resp)
+	}
+	if resp.StatusCode >= 400 {
+		return newAPIError(resp)
+	}
+	if out != nil && resp.StatusCode != http.StatusNoContent {
+		return json.NewDecoder(resp.Body).Decode(out)
+	}
+	return nil
+}
+
+// postYAML is like post but sends body YAML-encoded with a text/yaml
+// Content-Type instead of JSON, for the few endpoints that accept a
+// k8shell file directly rather than a JSON API payload. The response is
+// still decoded as JSON, matching the rest of the API.
+func (c *Client) postYAML(ctx context.Context, path string, body any, out any) error {
+	b, err := yaml.Marshal(body)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.server+path, bytes.NewReader(b))
+	if err != nil {
+		return err
+	}
+	if c.token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.token)
+	}
+	req.Header.Set("Content-Type", "text/yaml")
 	req.Header.Set("Accept", "application/json")
 	if c.debug {
 		c.debugRequest(req)
