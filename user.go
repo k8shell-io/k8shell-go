@@ -233,6 +233,59 @@ func (c *Client) AddRegistryUserCredential(ctx context.Context, username string,
 	return &out, nil
 }
 
+// ListUserTokens returns the personal access tokens issued for the named user.
+// The raw token values are never returned, only metadata (name, scopes, preview, etc).
+func (c *Client) ListUserTokens(ctx context.Context, username string) ([]models.AccessToken, error) {
+	var tokens []models.AccessToken
+	if err := c.get(ctx, c.userPath(username)+"/tokens", &tokens); err != nil {
+		return nil, err
+	}
+	return tokens, nil
+}
+
+// GetUserToken returns the named user's personal access token with the given ID.
+// The server has no single-token lookup endpoint, so this filters the result of
+// ListUserTokens client-side.
+func (c *Client) GetUserToken(ctx context.Context, username string, id int64) (*models.AccessToken, error) {
+	tokens, err := c.ListUserTokens(ctx, username)
+	if err != nil {
+		return nil, err
+	}
+	for _, t := range tokens {
+		if t.ID == id {
+			return &t, nil
+		}
+	}
+	return nil, &APIError{StatusCode: 404, Message: "token not found"}
+}
+
+// CreateUserToken issues a new personal access token for the named user and
+// returns its ID and raw secret value. The secret is returned exactly once —
+// it cannot be retrieved again after this call.
+func (c *Client) CreateUserToken(ctx context.Context, username string, req models.AccessTokenCreateRequest) (*models.AccessTokenCreated, error) {
+	var out models.AccessTokenCreated
+	if err := c.post(ctx, c.userPath(username)+"/tokens", req, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// UpdateUserToken partially updates the named user's personal access token with
+// the given ID — its active state and/or scopes — and returns the updated
+// record. Name and expiry are immutable after creation.
+func (c *Client) UpdateUserToken(ctx context.Context, username string, id int64, req models.AccessTokenUpdateRequest) (*models.AccessToken, error) {
+	var out models.AccessToken
+	if err := c.patch(ctx, c.userPath(username)+"/tokens/"+strconv.FormatInt(id, 10), req, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// DeleteUserToken revokes the named user's personal access token with the given ID.
+func (c *Client) DeleteUserToken(ctx context.Context, username string, id int64) error {
+	return c.delete(ctx, c.userPath(username)+"/tokens/"+strconv.FormatInt(id, 10))
+}
+
 // ListSessions returns SSH sessions visible to the authenticated token.
 // When username or workspace is non-empty, results are filtered accordingly.
 // When limit is greater than zero, results are capped to the last limit sessions.
