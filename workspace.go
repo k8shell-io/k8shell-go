@@ -59,13 +59,18 @@ func (c *Client) CreateWorkspace(ctx context.Context, req WorkspaceCreateRequest
 	if err := c.post(ctx, "/api/v1/workspaces", req, &resp); err != nil {
 		return nil, err
 	}
-	// Strip a duplicated jobId segment that some server versions emit in monitorUrl.
+	cleanMonitorURL(&resp)
+	return &resp, nil
+}
+
+// cleanMonitorURL strips a duplicated jobId segment that some server versions
+// emit in a WorkspaceCreateResponse's MonitorURL.
+func cleanMonitorURL(resp *WorkspaceCreateResponse) {
 	if resp.JobID != "" && strings.Count(resp.MonitorURL, resp.JobID) > 1 {
 		if idx := strings.LastIndex(resp.MonitorURL, "/"+resp.JobID); idx >= 0 {
 			resp.MonitorURL = resp.MonitorURL[:idx]
 		}
 	}
-	return &resp, nil
 }
 
 // GetWorkspace returns the details of the named workspace.
@@ -77,9 +82,17 @@ func (c *Client) GetWorkspace(ctx context.Context, name string) (*models.Workspa
 	return &ws, nil
 }
 
-// StartWorkspace starts a previously stopped workspace.
-func (c *Client) StartWorkspace(ctx context.Context, name string) error {
-	return c.post(ctx, "/api/v1/workspaces/"+name+"/start", struct{}{}, nil)
+// StartWorkspace starts a previously stopped workspace and returns the 202
+// response containing the workspace name, job ID, and SSE monitor URL —
+// starting is a streamed provisioning operation on the server, the same as
+// CreateWorkspace.
+func (c *Client) StartWorkspace(ctx context.Context, name string) (*WorkspaceCreateResponse, error) {
+	var resp WorkspaceCreateResponse
+	if err := c.post(ctx, "/api/v1/workspaces/"+name+"/start", struct{}{}, &resp); err != nil {
+		return nil, err
+	}
+	cleanMonitorURL(&resp)
+	return &resp, nil
 }
 
 // DeleteWorkspace shuts down the named workspace.
