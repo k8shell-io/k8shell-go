@@ -77,6 +77,11 @@ func (c *Client) GetWorkspace(ctx context.Context, name string) (*models.Workspa
 	return &ws, nil
 }
 
+// StartWorkspace starts a previously stopped workspace.
+func (c *Client) StartWorkspace(ctx context.Context, name string) error {
+	return c.post(ctx, "/api/v1/workspaces/"+name+"/start", struct{}{}, nil)
+}
+
 // DeleteWorkspace shuts down the named workspace.
 // When deleteData is true, workspace storage is permanently deleted.
 func (c *Client) DeleteWorkspace(ctx context.Context, name string, deleteData bool) error {
