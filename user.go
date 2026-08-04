@@ -126,16 +126,6 @@ func (c *Client) RemoveUserRoles(ctx context.Context, username string, roles []m
 	return c.deleteWithBody(ctx, c.userPath(username)+"/roles", models.UserRolesRequest{Roles: roles})
 }
 
-// AddUserBlueprints grants the given blueprints to the named user, in addition to any existing ones.
-func (c *Client) AddUserBlueprints(ctx context.Context, username string, blueprints []string) error {
-	return c.post(ctx, c.userPath(username)+"/blueprints", models.UserBlueprintsRequest{Blueprints: blueprints}, nil)
-}
-
-// RemoveUserBlueprints revokes the given blueprints from the named user, leaving others untouched.
-func (c *Client) RemoveUserBlueprints(ctx context.Context, username string, blueprints []string) error {
-	return c.deleteWithBody(ctx, c.userPath(username)+"/blueprints", models.UserBlueprintsRequest{Blueprints: blueprints})
-}
-
 // AddUserKeys adds the given SSH public keys to the named user, in addition to any existing keys.
 func (c *Client) AddUserKeys(ctx context.Context, username string, keys []string) error {
 	return c.post(ctx, c.userPath(username)+"/keys", models.UserKeysRequest{Keys: keys}, nil)

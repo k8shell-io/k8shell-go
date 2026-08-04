@@ -3,7 +3,7 @@ module github.com/k8shell-io/k8shell-go
 go 1.25.0
 
 require (
-	github.com/k8shell-io/common v0.34.3
+	github.com/k8shell-io/common v0.36.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
