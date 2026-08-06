@@ -58,9 +58,11 @@ func (c *Client) CreateUser(ctx context.Context, req models.UserCreateRequest) (
 	return &u, nil
 }
 
-// DeleteUser permanently deletes the named user. Only admin tokens can delete users.
-func (c *Client) DeleteUser(ctx context.Context, username string) error {
-	return c.delete(ctx, c.userPath(username))
+// DeleteUser permanently deletes the named user. When preserveWorkspaces is
+// true, the user's workspaces are kept instead of being deleted along with
+// the account. Only admin tokens can delete users.
+func (c *Client) DeleteUser(ctx context.Context, username string, preserveWorkspaces bool) error {
+	return c.deleteWithBody(ctx, c.userPath(username), models.UserDeleteRequest{PreserveWorkspaces: preserveWorkspaces})
 }
 
 // GetUserProfile returns the profile of the named user.
